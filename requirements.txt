@@ -5,3 +5,4 @@ python-dotenv
 flask
 openai
 pdf2image
+flask-cors
