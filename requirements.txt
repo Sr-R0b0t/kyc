@@ -1,0 +1,7 @@
+openpyxl
+pdfplumber
+pytesseract
+python-dotenv
+flask
+openai
+pdf2image

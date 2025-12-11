@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>KYC Extractor</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+
+    <style>
+
+        /* === Tema Coca-Cola === */
+        :root {
+            --coke-red: #E50914;
+            --coke-dark: #B20710;
+            --coke-light: #ffffff;
+        }
+
+        body {
+            background-color: #f8f9fa;
+            font-family: "Segoe UI", sans-serif;
+        }
+
+        .dash-card {
+            border-radius: 18px;
+            border: none;
+            padding: 40px;
+            background: var(--coke-light);
+            box-shadow: 0px 8px 30px rgba(0, 0, 0, 0.08);
+        }
+
+        h2 {
+            font-weight: 700;
+            color: var(--coke-red);
+        }
+
+        .btn-coke {
+            background-color: var(--coke-red);
+            color: #fff;
+            font-weight: bold;
+            border-radius: 10px;
+            border: none;
+            transition: 0.2s;
+        }
+
+        .btn-coke:hover {
+            background-color: var(--coke-dark);
+        }
+
+        /* Loading Animation */
+        #loadingBox {
+            display: none;
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #eee;
+            border-top: 4px solid var(--coke-red);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: auto;
+        }
+
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Barra de progresso */
+        #progressBarContainer {
+            display: none;
+            margin-top: 20px;
+        }
+
+        #progressBar {
+            height: 12px;
+            width: 0%;
+            transition: width 0.4s ease;
+            background-color: var(--coke-red);
+            border-radius: 8px;
+        }
+
+        /* Caixa de erro */
+        #errorBox {
+            display: none;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <div class="dash-card">
+        <h2 class="text-center mb-4">Extração KYC</h2>
+
+        <!-- Caixa de erro -->
+        <div id="errorBox" class="alert alert-danger"></div>
+
+        <!-- Barra de Progresso -->
+        <div id="progressBarContainer" class="progress">
+            <div id="progressBar"></div>
+        </div>
+
+        <!-- Loading animado -->
+        <div id="loadingBox">
+            <div class="spinner"></div>
+            <p class="mt-2"><strong>Aguarde...</strong><br>Processando arquivos</p>
+        </div>
+
+        <form id="kycForm" enctype="multipart/form-data">
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Arquivo CNPJ (PDF)</label>
+                <input type="file" name="cnpj_pdf" class="form-control" accept="application/pdf" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Contrato Social (PDF)</label>
+                <input type="file" name="contrato_pdf" class="form-control" accept="application/pdf" required>
+            </div>
+
+            <div class="d-flex gap-3 mt-4">
+                <button class="btn btn-coke w-100" type="submit">
+                    Gerar KYC
+                </button>
+
+                <button type="button" class="btn btn-secondary w-25" id="clearBtn">
+                    Limpar
+                </button>
+            </div>
+
+        </form>
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById("kycForm");
+    const loadingBox = document.getElementById("loadingBox");
+    const progressBar = document.getElementById("progressBar");
+    const progressContainer = document.getElementById("progressBarContainer");
+    const errorBox = document.getElementById("errorBox");
+    const clearBtn = document.getElementById("clearBtn");
+
+    // Barra de progresso fake (visual)
+    function animateProgress() {
+        progressContainer.style.display = "block";
+        let width = 0;
+
+        const interval = setInterval(() => {
+            if (width >= 100) {
+                clearInterval(interval);
+            } else {
+                width += Math.random() * 10;
+                progressBar.style.width = width + "%";
+            }
+        }, 300);
+    }
+
+    // Submeter via fetch para capturar erro sem recarregar antes do download
+    form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        // Zera mensagens
+        errorBox.style.display = "none";
+
+        // Mostra animações
+        loadingBox.style.display = "block";
+        animateProgress();
+
+        // Prepara envio
+        const formData = new FormData(form);
+
+        try {
+            const response = await fetch("https://kyc-api.onrender.com/processar", {
+                method: "POST",
+                body: formData
+            });
+
+            // Se resposta for JSON → DEU ERRO
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                const errorData = await response.json();
+                loadingBox.style.display = "none";
+                errorBox.style.display = "block";
+                errorBox.innerHTML = "<strong>Erro:</strong> " + (errorData.error || "Erro desconhecido.");
+                return;
+            }
+
+            // Se chegou aqui → veio o arquivo para download
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "Ficha_KYC_Preenchida.xlsx";
+            a.click();
+
+            window.URL.revokeObjectURL(url);
+
+            loadingBox.style.display = "none";
+            progressContainer.style.display = "none";
+        }
+
+        catch (err) {
+            loadingBox.style.display = "none";
+            progressContainer.style.display = "none";
+            errorBox.style.display = "block";
+            errorBox.innerHTML = "<strong>Erro inesperado:</strong> " + err.message;
+        }
+    });
+
+    // Botão limpar
+    clearBtn.addEventListener("click", () => {
+        form.reset();
+        loadingBox.style.display = "none";
+        progressContainer.style.display = "none";
+        errorBox.style.display = "none";
+        progressBar.style.width = "0%";
+    });
+</script>
+
+</body>
+</html>
